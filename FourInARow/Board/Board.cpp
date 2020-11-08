@@ -1,5 +1,6 @@
+#include <algorithm>
+
 #include "Board.hpp"
-#include "CML.hpp"
 
 BoardState::BoardState()
 {
@@ -131,9 +132,74 @@ int BoardState::GetFourInARow() const
     return 0;
 }
 
+BoardState BoardState::AlphaBetaPruning(vector<BoardState*>& moves, int maxDepth) const
+{
+    const BoardState* choice = nullptr;
+    float alpha = -numeric_limits<float>::infinity();
+    float beta = numeric_limits<float>::infinity();
+    
+    for (auto child : moves)
+    {
+        float value = AlphaBetaMin(child, maxDepth - 1, alpha, beta);
+        if (value > alpha)
+        {
+            alpha = value;
+            choice = child;
+        }
+    }
+    
+    return *choice;
+}
+
 float BoardState::CalculateHeuristic() const
 {
     return 0.f;
+}
+
+float BoardState::AlphaBetaMax(const BoardState* node, int depth, float alpha, float beta) const
+{
+    if (!depth || node->IsTerminal())
+        return node->GetScore();
+    
+    vector<BoardState*> moves = node->GetPossibleMoves(ERed);
+    float maxValue = -numeric_limits<float>::infinity();
+    
+    for (auto child : moves)
+    {
+        maxValue = max(maxValue, AlphaBetaMin(child, depth - 1, alpha, beta));
+        if (maxValue >= beta)
+            return maxValue;
+        
+        alpha = max(maxValue, alpha);
+    }
+    
+    for (auto state : moves)
+        delete state;
+    
+    return maxValue;
+}
+
+float BoardState::AlphaBetaMin(const BoardState* node, int depth, float alpha, float beta) const
+{
+    if (!depth || node->IsTerminal())
+        return node->GetScore();
+    
+    vector<BoardState*> moves = node->GetPossibleMoves(ERed);
+    float minValue = numeric_limits<float>::infinity();
+    
+    for (auto child : moves)
+    {
+        minValue = min(minValue, AlphaBetaMax(child, depth - 1, alpha, beta));
+        if (minValue <= alpha)
+            return minValue;
+        
+        beta = min(minValue, beta);
+    }
+    
+    for (auto state : moves)
+        delete state;
+    
+    return minValue;
 }
 
 bool TryPlayerMove(BoardState* boardState, int column)
@@ -153,8 +219,8 @@ bool TryPlayerMove(BoardState* boardState, int column)
 void CPUMove(BoardState* boardState)
 {
     vector<BoardState*> moves = boardState->GetPossibleMoves(BoardState::ERed);
-    int index = CML::Random::GetRandomInt(0, moves.size() - 1);
-    *boardState = *moves[index];
+    
+    *boardState = boardState->AlphaBetaPruning(moves);
     
     for (auto state : moves)
         delete state;
